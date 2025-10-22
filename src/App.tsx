@@ -10,9 +10,12 @@ import DisasterZones from "./pages/DisasterZones";
 import EmergencyContacts from "./pages/EmergencyContacts";
 import VolunteerLogin from "./pages/VolunteerLogin";
 import AgencyLogin from "./pages/AgencyLogin";
-import MinisterLogin from "./pages/MinisterLogin";
 import ReportDisaster from "./pages/ReportDisaster";
 import NotFound from "./pages/NotFound";
+import Landing from "./pages/LandingPage";
+import CitizenRegister from "./pages/CitizenRegister";
+import CitizenLogin from "./pages/CitizenLogin";
+import LandingPage from "./pages/LandingPage";
 
 const queryClient = new QueryClient();
 
@@ -23,13 +26,15 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/citizen-register" element={<CitizenRegister />} />
+<Route path="/citizen-login" element={<CitizenLogin />} />
+<Route path="/dashboard" element={<Dashboard />} />
           <Route path="/organization" element={<Organization />} />
           <Route path="/disaster-zones" element={<DisasterZones />} />
           <Route path="/emergency-contacts" element={<EmergencyContacts />} />
           <Route path="/volunteer-login" element={<VolunteerLogin />} />
           <Route path="/agency-login" element={<AgencyLogin />} />
-          <Route path="/minister-login" element={<MinisterLogin />} />
           <Route path="/report-disaster" element={<ReportDisaster />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
