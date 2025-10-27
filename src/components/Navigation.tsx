@@ -1,20 +1,29 @@
-
-import { Link, useLocation } from "react-router-dom";
-import { Shield, Menu, X } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Shield, Menu, X, LogOut } from "lucide-react";
 import { useState } from "react";
 
 const Navigation = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navItems = [
-    { path: "/", label: "Dashboard" },
+    { path: "/dashboard", label: "Dashboard" },
     { path: "/organization", label: "Partner Organizations" },
     { path: "/disaster-zones", label: "Disaster Zones" },
     { path: "/emergency-contacts", label: "Emergency Contacts" },
-    { path: "/volunteer-login", label: "Volunteer Login" },
-    { path: "/agency-login", label: "Agency Login" },
   ];
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setIsMenuOpen(false);
+    navigate('/');
+  };
+
+  const isAuthenticated = () => {
+    return !!localStorage.getItem('access_token');
+  };
 
   return (
     <nav className="bg-white shadow-md border-t border-gray-200">
@@ -34,21 +43,37 @@ const Navigation = () => {
         </div>
         
         <div className={`${isMenuOpen ? 'block' : 'hidden'} md:block pb-4`}>
-          <ul className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-1">
-            {navItems.map((item) => (
-              <li key={item.path}>
-                <Link
-                  to={item.path}
-                  className={`block px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
-                    location.pathname === item.path
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "text-gray-700 hover:bg-blue-50 hover:text-blue-700"
-                  }`}
+          <ul className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-1 items-start md:items-center md:justify-between">
+            <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-1 w-full md:w-auto">
+              {navItems.map((item) => (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`block px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
+                      location.pathname === item.path
+                        ? "bg-blue-600 text-white shadow-md"
+                        : "text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                    }`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </div>
+
+            {/* Logout Button - Only show if authenticated */}
+            {isAuthenticated() && (
+              <li className="w-full md:w-auto md:ml-auto">
+                <button
+                  onClick={handleLogout}
+                  className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg"
                 >
-                  {item.label}
-                </Link>
+                  <LogOut className="h-5 w-5" />
+                  Logout
+                </button>
               </li>
-            ))}
+            )}
           </ul>
         </div>
       </div>

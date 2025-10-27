@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,10 +11,9 @@ import VolunteerLogin from "./pages/VolunteerLogin";
 import AgencyLogin from "./pages/AgencyLogin";
 import ReportDisaster from "./pages/ReportDisaster";
 import NotFound from "./pages/NotFound";
-import Landing from "./pages/LandingPage";
+import LandingPage from "./pages/LandingPage";
 import CitizenRegister from "./pages/CitizenRegister";
 import CitizenLogin from "./pages/CitizenLogin";
-import LandingPage from "./pages/LandingPage";
 
 const queryClient = new QueryClient();
 
@@ -28,8 +26,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/citizen-register" element={<CitizenRegister />} />
-<Route path="/citizen-login" element={<CitizenLogin />} />
-<Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/citizen-login" element={<CitizenLogin />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+        
           <Route path="/organization" element={<Organization />} />
           <Route path="/disaster-zones" element={<DisasterZones />} />
           <Route path="/emergency-contacts" element={<EmergencyContacts />} />

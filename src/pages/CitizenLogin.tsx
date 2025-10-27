@@ -1,25 +1,75 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, User, Lock, ArrowLeft } from 'lucide-react';
+import { loginCitizen } from '../services/api';
 
 const CitizenLogin = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
+    username_or_phone: '',
     password: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({ ...prev, [id]: value }));
+    setError(''); // Clear error when user starts typing
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+
     console.log('Citizen Login Data:', formData);
-    // Add your login logic here
-    alert('Login successful! Redirecting to Dashboard.');
-    navigate('/dashboard');
+
+    try {
+      const submissionData = {
+        username_or_phone: formData.username_or_phone,
+        password: formData.password
+      };
+
+      console.log('Submission Data being sent:', submissionData);
+      const response = await loginCitizen(submissionData);
+      
+      console.log('Login successful:', response.data);
+      
+      // Store tokens if provided by backend
+      if (response.data.access_token) {
+        localStorage.setItem('access_token', response.data.access_token);
+      }
+      if (response.data.refresh_token) {
+        localStorage.setItem('refresh_token', response.data.refresh_token);
+      }
+
+      // Store citizen data for SOS reporting
+      if (response.data.user) {
+        localStorage.setItem('citizen_data', JSON.stringify({
+          first_name: response.data.user.first_name,
+          last_name: response.data.user.last_name,
+          phone_number: response.data.user.phone_number,
+          email: response.data.user.email,
+          username: response.data.user.username,
+          id: response.data.user.id
+        }));
+        console.log('Citizen data stored:', response.data.user);
+      }
+
+      alert('Login successful! Redirecting to Dashboard.');
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Login error:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.message || 
+                          error.response?.data?.error ||
+                          'Login failed. Please try again.';
+      setError(errorMessage);
+      alert(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -47,18 +97,24 @@ const CitizenLogin = () => {
 
           {/* Form */}
           <div className="p-8">
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-blue-100 mb-2">
-                  Email Address
+                <label htmlFor="username_or_phone" className="block text-sm font-medium text-blue-100 mb-2">
+                  Username or Phone Number
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
-                    id="email"
-                    type="email"
-                    placeholder="your.email@example.com"
-                    value={formData.email}
+                    id="username_or_phone"
+                    type="text"
+                    placeholder="Enter username or phone number"
+                    value={formData.username_or_phone}
                     onChange={handleChange}
                     required
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
@@ -96,10 +152,11 @@ const CitizenLogin = () => {
 
               <button
                 type="submit"
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+                disabled={loading}
+                className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
               >
                 <LogIn className="w-5 h-5" />
-                Login to Account
+                {loading ? 'Logging in...' : 'Login to Account'}
               </button>
             </form>
 

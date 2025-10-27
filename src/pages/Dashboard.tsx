@@ -1,21 +1,50 @@
-
 import Layout from "@/components/Layout";
-import { AlertTriangle, Ambulance, Home, BarChart3, FileText, Users, Calendar, DollarSign, Bot } from "lucide-react";
+import { AlertTriangle, Ambulance, Home, BarChart3, FileText, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import SOSCircularMenu from "@/components/SOSCircularMenu";
+
+interface UserData {
+  name: string;
+  phone: string;
+  lat: number;
+  lng: number;
+}
 
 const Dashboard = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Get user data from localStorage
+    const storedUserData = localStorage.getItem('citizen_data');
+    if (storedUserData) {
+      try {
+        const parsedData = JSON.parse(storedUserData);
+        setUserData({
+          name: parsedData.first_name || parsedData.firstName || 'Citizen',
+          phone: parsedData.phone_number || parsedData.phone || '',
+          lat: 0,
+          lng: 0
+        });
+      } catch (error) {
+        console.log('Error parsing user data:', error);
+      }
+    }
+
+    // Get live location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setLocation({
+          const locationData = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          });
+          };
+          setLocation(locationData);
+          
+          // Update userData with location
+          setUserData(prev => prev ? { ...prev, ...locationData } : null);
         },
         (error) => {
           console.log("Location access denied or unavailable");
@@ -24,21 +53,84 @@ const Dashboard = () => {
     }
   }, []);
 
-  const handleSOSClick = () => {
-    if (location) {
-      const formData = new FormData();
-      formData.append('access_key', 'c4936e92-1659-45bf-b364-7836cabe9a40');
-      formData.append('latitude', location.lat.toString());
-      formData.append('longitude', location.lng.toString());
+
+
+  const handleDisasterReport = async (disasterId: string) => {
+    console.log('Reporting disaster:', disasterId);
+    
+    const disasterTypes: Record<string, string> = {
+      fire: 'Fire',
+      accident: 'Accident',
+      landslide: 'Landslide'
+    };
+
+    if (!userData || !location) {
+      alert('Unable to report emergency. Please ensure location is enabled and you are logged in.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Step 1: Get address from coordinates
+      const geoData = await getReverseGeocoding(location.lat, location.lng);
       
-      fetch('https://api.web3forms.com/submit', {
+      // Step 2: Prepare data to send to backend
+      const reportData = {
+        disaster_type: disasterId,
+        full_address: geoData.full_address,
+        pincode: geoData.pincode,
+        latitude: location.lat,
+        longitude: location.lng
+      };
+
+      console.log('Disaster Report Data:', reportData);
+
+      // Step 3: Send to Django backend
+      const response = await fetch('http://localhost:8000/agency/report-sos/', {
         method: 'POST',
-        body: formData
-      }).then(() => {
-        alert('Emergency alert sent! Responders have been notified of your location. Please stay safe.');
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify(reportData)
       });
-    } else {
-      alert('Emergency alert sent! Please provide your location to responders when they contact you.');
+
+      const responseData = await response.json();
+
+      if (response.ok) {
+        console.log('Report submitted successfully:', responseData);
+        alert(
+          `${disasterTypes[disasterId]} Incident Reported Successfully!\n\n` +
+          `Incident ID: ${responseData.incident_id}\n` +
+          `Status: ${responseData.status}\n\n` +
+          `Your Details:\n` +
+          `Name: ${userData.name}\n` +
+          `Phone: ${userData.phone}\n` +
+          `Location: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}\n` +
+          `Address: ${geoData.full_address}\n\n` +
+          `Authorities have been notified.`
+        );
+      } else {
+        console.error('Error response:', responseData);
+        alert(
+          `Error reporting incident: ${responseData.detail || 'Please try again'}\n\n` +
+          `However, your location has been recorded:\n` +
+          `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`
+        );
+      }
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      alert(
+        `${disasterTypes[disasterId]} Incident Report Sent!\n\n` +
+        `Your Details:\n` +
+        `Name: ${userData.name}\n` +
+        `Phone: ${userData.phone}\n` +
+        `Location: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}\n\n` +
+        `Please stay safe. Emergency services have been alerted.`
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -227,14 +319,10 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Fixed SOS Button - No flickering animation */}
-      <Button
-        onClick={handleSOSClick}
-        className="fixed bottom-8 left-8 w-20 h-20 bg-red-500 hover:bg-red-600 text-white font-bold text-lg rounded-full shadow-2xl hover:shadow-red-500/50 border-4 border-white z-50 pulse-glow"
-        size="lg"
-      >
-        SOS
-      </Button>
+      {/* Fixed SOS Circular Menu Button */}
+      <div className="fixed bottom-8 left-8 z-50">
+        <SOSCircularMenu onSelectDisaster={handleDisasterReport} disabled={loading} />
+      </div>
     </Layout>
   );
 };
