@@ -19,7 +19,7 @@ const AgencyLogin = () => {
     console.log('Agency Login Data:', formData);
     // Add your login logic here
     alert('Agency login successful! Redirecting to Agency Dashboard.');
-    navigate('/dashboard');
+    navigate('/agencydashboard');
   };
 
   return (

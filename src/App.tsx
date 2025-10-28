@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
 import CitizenRegister from "./pages/CitizenRegister";
 import CitizenLogin from "./pages/CitizenLogin";
+import AgencyDashboard from "./pages/AgencyDashboard";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/citizen-register" element={<CitizenRegister />} />
           <Route path="/citizen-login" element={<CitizenLogin />} />
           <Route path="/dashboard" element={<Dashboard />} />
+           <Route path="/agencydashboard" element={<AgencyDashboard />} />
         
           <Route path="/organization" element={<Organization />} />
           <Route path="/disaster-zones" element={<DisasterZones />} />
