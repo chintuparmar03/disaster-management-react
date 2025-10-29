@@ -109,7 +109,7 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Token ${token}`;
     }
     console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
     return config;

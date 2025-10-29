@@ -3,6 +3,7 @@ import { AlertTriangle, Ambulance, Home, BarChart3, FileText, Users } from "luci
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SOSCircularMenu from "@/components/SOSCircularMenu";
+import { reportEmergencySOS, getCitizenData, getErrorMessage } from "@/services/api"; // Adjust path to your services
 
 interface UserData {
   name: string;
@@ -17,14 +18,15 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Get user data from localStorage
-    const storedUserData = localStorage.getItem('citizen_data');
-    if (storedUserData) {
+    // Get user data from localStorage or use service function
+    const citizenData = getCitizenData();
+    
+    if (citizenData || localStorage.getItem('citizen_data')) {
       try {
-        const parsedData = JSON.parse(storedUserData);
+        const data = citizenData || JSON.parse(localStorage.getItem('citizen_data') || '{}');
         setUserData({
-          name: parsedData.first_name || parsedData.firstName || 'Citizen',
-          phone: parsedData.phone_number || parsedData.phone || '',
+          name: data.first_name || data.firstName || 'Citizen',
+          phone: data.phone_number || data.phone || '',
           lat: 0,
           lng: 0
         });
@@ -53,8 +55,6 @@ const Dashboard = () => {
     }
   }, []);
 
-
-
   const handleDisasterReport = async (disasterId: string) => {
     console.log('Reporting disaster:', disasterId);
     
@@ -64,70 +64,57 @@ const Dashboard = () => {
       landslide: 'Landslide'
     };
 
-    if (!userData || !location) {
-      alert('Unable to report emergency. Please ensure location is enabled and you are logged in.');
+    // Validate location and user data
+    if (!location) {
+      alert('Unable to get your location. Please ensure location permission is enabled.');
+      return;
+    }
+
+    if (!userData) {
+      alert('User data not found. Please login again.');
       return;
     }
 
     setLoading(true);
 
     try {
-      // Step 1: Get address from coordinates
-      const geoData = await getReverseGeocoding(location.lat, location.lng);
-      
-      // Step 2: Prepare data to send to backend
-      const reportData = {
+      // Prepare data exactly as backend expects
+      const emergencyData = {
         disaster_type: disasterId,
-        full_address: geoData.full_address,
-        pincode: geoData.pincode,
         latitude: location.lat,
-        longitude: location.lng
+        longitude: location.lng,
+        full_address: '', // Backend will fill this via reverse geocoding
+        pincode: ''       // Backend will fill this via reverse geocoding
       };
 
-      console.log('Disaster Report Data:', reportData);
+      console.log('Disaster Report Data:', emergencyData);
 
-      // Step 3: Send to Django backend
-      const response = await fetch('http://localhost:8000/agency/report-sos/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify(reportData)
-      });
+      // Use service function to report emergency
+      const response = await reportEmergencySOS(emergencyData);
 
-      const responseData = await response.json();
-
-      if (response.ok) {
-        console.log('Report submitted successfully:', responseData);
-        alert(
-          `${disasterTypes[disasterId]} Incident Reported Successfully!\n\n` +
-          `Incident ID: ${responseData.incident_id}\n` +
-          `Status: ${responseData.status}\n\n` +
-          `Your Details:\n` +
-          `Name: ${userData.name}\n` +
-          `Phone: ${userData.phone}\n` +
-          `Location: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}\n` +
-          `Address: ${geoData.full_address}\n\n` +
-          `Authorities have been notified.`
-        );
-      } else {
-        console.error('Error response:', responseData);
-        alert(
-          `Error reporting incident: ${responseData.detail || 'Please try again'}\n\n` +
-          `However, your location has been recorded:\n` +
-          `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}`
-        );
-      }
-    } catch (error) {
-      console.error('Error submitting report:', error);
+      console.log('Report submitted successfully:', response.data);
+      
       alert(
-        `${disasterTypes[disasterId]} Incident Report Sent!\n\n` +
+        `${disasterTypes[disasterId]} Incident Reported Successfully!\n\n` +
+        `Incident ID: ${response.data.incident_id}\n` +
+        `Status: ${response.data.status}\n\n` +
         `Your Details:\n` +
         `Name: ${userData.name}\n` +
         `Phone: ${userData.phone}\n` +
         `Location: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}\n\n` +
-        `Please stay safe. Emergency services have been alerted.`
+        `Message: ${response.data.message}\n\n` +
+        `Authorities have been notified.`
+      );
+    } catch (error: any) {
+      console.error('Error submitting report:', error);
+      
+      const errorMessage = getErrorMessage(error);
+      
+      alert(
+        `Error reporting incident:\n${errorMessage}\n\n` +
+        `Your Location:\n` +
+        `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}\n\n` +
+        `Please try again or contact support.`
       );
     } finally {
       setLoading(false);
@@ -172,8 +159,8 @@ const Dashboard = () => {
                       <span className="text-sm">Vehicle accidents or being trapped in vehicles</span>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <span className="text-2xl">💧</span>
-                      <span className="text-sm">Flash floods or water-logged areas</span>
+                      <span className="text-2xl">⛏️</span>
+                      <span className="text-sm">Landslides or ground instability</span>
                     </div>
                   </div>
                   <div className="space-y-3">
