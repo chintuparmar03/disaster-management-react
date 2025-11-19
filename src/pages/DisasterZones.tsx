@@ -80,7 +80,7 @@ const DisasterZones = () => {
   const getEqColor = (mag: number): string => {
     if (mag >= 5) return 'red';
     if (mag >= 3) return 'orange';
-    return 'green';
+    return 'yellow';
   };
 
   const initFloodMap = () => {
@@ -121,29 +121,71 @@ const DisasterZones = () => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(eqMap);
 
-    const minLat = 6, maxLat = 38, minLon = 68, maxLon = 98;
-    const usgsUrl = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minlatitude=${minLat}&maxlatitude=${maxLat}&minlongitude=${minLon}&maxlongitude=${maxLon}&orderby=time&limit=20`;
+    // Fetch recent earthquakes from USGS
+    const minLat = 6;
+    const maxLat = 38;
+    const minLon = 68;
+    const maxLon = 98;
+    
+    // Fetch earthquakes from last 30 days
+    const usgsUrl = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minlatitude=${minLat}&maxlatitude=${maxLat}&minlongitude=${minLon}&maxlongitude=${maxLon}&starttime=2025-09-29&orderby=magnitude&limit=50`;
+
+    console.log('Fetching earthquakes from:', usgsUrl);
 
     fetch(usgsUrl)
-      .then(res => res.json())
-      .then(data => {
-        data.features.forEach((q: any) => {
-          const props = q.properties;
-          const coords = q.geometry.coordinates;
-          const mag = props.mag;
-
-          L.circleMarker([coords[1], coords[0]], {
-            radius: 8 + mag * 2,
-            fillColor: getEqColor(mag),
-            color: '#000',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-          }).addTo(eqMap)
-            .bindPopup(`<b>${props.place}</b><br>Magnitude: ${mag}<br>Depth: ${coords[2]} km`);
-        });
+      .then(res => {
+        console.log('Response status:', res.status);
+        return res.json();
       })
-      .catch(err => console.error('Error fetching earthquake data:', err));
+      .then(data => {
+        console.log('Earthquake data received:', data);
+        
+        if (!data.features || data.features.length === 0) {
+          console.log('No earthquakes found in the region');
+          // Add a placeholder message
+          L.marker([20, 82]).addTo(eqMap)
+            .bindPopup('No recent earthquakes in this region');
+          return;
+        }
+
+        data.features.forEach((q: any) => {
+          try {
+            const props = q.properties;
+            const coords = q.geometry.coordinates;
+            const mag = props.mag || 0;
+            const place = props.place || 'Unknown location';
+
+            console.log(`Adding marker: ${place}, Magnitude: ${mag}`);
+
+            L.circleMarker([coords[1], coords[0]], {
+              radius: Math.max(5, 5 + mag * 2),
+              fillColor: getEqColor(mag),
+              color: '#000',
+              weight: 1.5,
+              opacity: 0.9,
+              fillOpacity: 0.8
+            }).addTo(eqMap)
+              .bindPopup(
+                `<div style="font-size: 12px;">
+                  <b>${place}</b><br>
+                  Magnitude: <strong>${mag}</strong><br>
+                  Depth: ${coords[2]} km<br>
+                  Time: ${new Date(props.time).toLocaleString()}
+                </div>`
+              );
+          } catch (err) {
+            console.error('Error processing earthquake feature:', err);
+          }
+        });
+
+        console.log(`Successfully added ${data.features.length} earthquakes to map`);
+      })
+      .catch(err => {
+        console.error('Error fetching earthquake data:', err);
+        // Show error message on map
+        L.marker([20, 82]).addTo(eqMap)
+          .bindPopup('Failed to load earthquake data. Please try again.');
+      });
 
     earthquakeMapRef.current = eqMap;
     setTimeout(() => eqMap.invalidateSize(), 300);
@@ -173,7 +215,7 @@ const DisasterZones = () => {
           </Card>
         </div>
 
-        <div className="flex items-center justify-center gap-6">
+        <div className="flex items-center justify-center gap-6 flex-wrap">
           {disasters.map((disaster, index) => (
             <Card key={index} className="border-2 border-blue-900 hover:scale-105 transition-transform duration-300 w-full max-w-sm">
               {/* Dynamic Map Container */}

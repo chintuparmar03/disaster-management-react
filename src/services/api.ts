@@ -104,14 +104,20 @@ const apiClient: AxiosInstance = axios.create({
   timeout: 10000,
 });
 
-// Request Interceptor - Add token to headers
+// Request Interceptor - Add token to headers and log requests
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Token ${token}`;
     }
-    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
+    
+    // Enhanced logging for debugging
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, {
+      headers: config.headers,
+      data: config.data
+    });
+    
     return config;
   },
   (error: AxiosError) => {
@@ -123,11 +129,15 @@ apiClient.interceptors.request.use(
 // Response Interceptor - Handle errors and token refresh
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
-    console.log(`[API Response] ${response.status}`, response.data);
+    console.log(`[API Response] ${response.status} ${response.config.url}`, response.data);
     return response;
   },
   (error: AxiosError<ErrorResponse>) => {
-    console.error('[API Response Error]', error.response?.status, error.response?.data);
+    console.error('[API Response Error]', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
 
     // Handle 401 Unauthorized
     if (error.response?.status === 401) {
@@ -162,10 +172,7 @@ export const registerCitizen = async (
   formData: CitizenRegistrationData
 ): Promise<AxiosResponse<RegistrationResponse>> => {
   try {
-    console.log('[Register] Submitting citizen registration:', {
-      ...formData,
-      password: '***',
-    });
+    console.log('[Register] Submitting citizen registration for:', formData.username);
 
     const response = await apiClient.post<RegistrationResponse>(
       '/citizen/citizens/',
@@ -285,7 +292,7 @@ export const getAllCitizens = async (): Promise<AxiosResponse<ProfileResponse[]>
 
     const response = await apiClient.get<ProfileResponse[]>('/api/citizens/');
 
-    console.log('[Get All Citizens Success]', response.data.length);
+    console.log('[Get All Citizens Success] Retrieved', response.data.length, 'citizens');
     return response;
   } catch (error) {
     console.error('[Get All Citizens Error]', error);
@@ -304,7 +311,11 @@ export const updateLocation = async (
   locationData: LocationData
 ): Promise<AxiosResponse<{ latitude: number; longitude: number; location_permission: boolean }>> => {
   try {
-    console.log('[Update Location] Submitting location:', locationData);
+    console.log('[Update Location] Submitting location:', {
+      latitude: locationData.latitude.toFixed(6),
+      longitude: locationData.longitude.toFixed(6),
+      location_permission: locationData.location_permission
+    });
 
     const response = await apiClient.patch(
       '/api/citizens/location/',
@@ -325,8 +336,8 @@ export const updateLocation = async (
 
 /**
  * Get reverse geocoding (convert coordinates to address)
- * @param latitude - Latitude coordinate
- * @param longitude - Longitude coordinate
+ * @param latitude - Latitude coordinate (must be between -90 and 90)
+ * @param longitude - Longitude coordinate (must be between -180 and 180)
  * @returns Promise with address information
  */
 export const getReverseGeocoding = async (
@@ -334,7 +345,15 @@ export const getReverseGeocoding = async (
   longitude: number
 ): Promise<AxiosResponse<ReverseGeocodingResponse>> => {
   try {
-    console.log('[Reverse Geocoding] Fetching address for:', { latitude, longitude });
+    // Validate coordinates before sending
+    if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+      throw new Error(`Invalid coordinates: Lat=${latitude}, Lng=${longitude}`);
+    }
+
+    console.log('[Reverse Geocoding] Fetching address for:', {
+      latitude: latitude.toFixed(6),
+      longitude: longitude.toFixed(6)
+    });
 
     const response = await apiClient.get<ReverseGeocodingResponse>(
       '/api/geocoding/reverse/',
@@ -358,17 +377,32 @@ export const getReverseGeocoding = async (
 
 /**
  * Report emergency/disaster (SOS)
- * @param emergencyData - Emergency incident data
+ * @param emergencyData - Emergency incident data with valid coordinates
  * @returns Promise with emergency report response
  */
 export const reportEmergencySOS = async (
   emergencyData: EmergencyReportData
 ): Promise<AxiosResponse<EmergencyResponse>> => {
   try {
-    console.log('[Report Emergency] Submitting emergency report:', emergencyData);
+    // Validate coordinates before sending to backend
+    if (Math.abs(emergencyData.latitude) > 90 || Math.abs(emergencyData.longitude) > 180) {
+      console.error('[Report Emergency] Invalid coordinates:', emergencyData);
+      throw new Error(
+        `Invalid coordinates received: Latitude=${emergencyData.latitude}, Longitude=${emergencyData.longitude}. ` +
+        `Valid ranges: Latitude [-90, 90], Longitude [-180, 180]`
+      );
+    }
+
+    console.log('[Report Emergency] Submitting emergency report:', {
+      disaster_type: emergencyData.disaster_type,
+      latitude: emergencyData.latitude.toFixed(6),
+      longitude: emergencyData.longitude.toFixed(6),
+      full_address: emergencyData.full_address,
+      pincode: emergencyData.pincode
+    });
 
     const response = await apiClient.post<EmergencyResponse>(
-      '/agency/report-sos/',
+      '/agency/sos/report/',
       {
         disaster_type: emergencyData.disaster_type,
         full_address: emergencyData.full_address,
@@ -418,7 +452,7 @@ export const isAuthenticated = (): boolean => {
  * Get stored citizen data
  * @returns Parsed citizen data or null
  */
-export const getCitizenData = (): { id: number; username: string; email: string } | null => {
+export const getCitizenData = (): { id: number; username: string; email: string; first_name?: string; last_name?: string; phone_number?: string } | null => {
   const data = localStorage.getItem('citizen_data');
   if (data) {
     try {
@@ -442,24 +476,60 @@ export const getAccessToken = (): string | null => {
 // ============ ERROR HANDLING UTILITIES ============
 
 /**
- * Extract error message from API response
+ * Extract and format error message from API response
  * @param error - Axios error object
  * @returns Human-readable error message
  */
 export const getErrorMessage = (error: AxiosError<ErrorResponse>): string => {
+  console.log('[Error Handler] Processing error:', {
+    status: error.response?.status,
+    data: error.response?.data,
+    message: error.message
+  });
+
+  // Check for specific error details in response
   if (error.response?.data?.detail) {
-    return error.response.data.detail;
+    return String(error.response.data.detail);
   }
+  
   if (error.response?.data?.message) {
-    return error.response.data.message;
+    return String(error.response.data.message);
   }
+  
   if (error.response?.data?.error) {
-    return error.response.data.error;
+    return String(error.response.data.error);
   }
-  if (error.message) {
-    return error.message;
+
+  // Handle specific HTTP status codes
+  if (error.response?.status === 400) {
+    return 'Invalid request. Please check your input and try again.';
   }
-  return 'An error occurred. Please try again.';
+
+  if (error.response?.status === 401) {
+    return 'Session expired. Please login again.';
+  }
+
+  if (error.response?.status === 403) {
+    return 'You do not have permission to perform this action.';
+  }
+
+  if (error.response?.status === 404) {
+    return 'The requested resource was not found.';
+  }
+
+  if (error.response?.status === 500) {
+    return 'Server error. Please try again later or contact support.';
+  }
+
+  if (error.message === 'Network Error') {
+    return 'Network error. Please check your internet connection.';
+  }
+
+  if (error.message.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+
+  return error.message || 'An error occurred. Please try again.';
 };
 
 export default apiClient;

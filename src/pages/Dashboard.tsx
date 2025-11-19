@@ -3,7 +3,7 @@ import { AlertTriangle, Ambulance, Home, BarChart3, FileText, Users } from "luci
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SOSCircularMenu from "@/components/SOSCircularMenu";
-import { reportEmergencySOS, getCitizenData, getErrorMessage } from "@/services/api"; // Adjust path to your services
+import { reportEmergencySOS, getCitizenData, getErrorMessage } from "@/services/api";
 
 interface UserData {
   name: string;
@@ -12,10 +12,19 @@ interface UserData {
   lng: number;
 }
 
+interface LocationState {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  timestamp: number;
+}
+
 const Dashboard = () => {
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<LocationState | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isAcquiringLocation, setIsAcquiringLocation] = useState(true);
 
   useEffect(() => {
     // Get user data from localStorage or use service function
@@ -31,32 +40,117 @@ const Dashboard = () => {
           lng: 0
         });
       } catch (error) {
-        console.log('Error parsing user data:', error);
+        console.error('Error parsing user data:', error);
       }
     }
 
-    // Get live location
+    // Get live location with high accuracy
     if (navigator.geolocation) {
+      console.log('[Location] Requesting geolocation with high accuracy...');
+      
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const locationData = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          setLocation(locationData);
+          const { latitude, longitude, accuracy } = position.coords;
           
+          console.log('[Location Success]', {
+            latitude,
+            longitude,
+            accuracy,
+            timestamp: position.timestamp
+          });
+
+          // Validate coordinates
+          if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+            console.error('[Location] Invalid coordinates received:', latitude, longitude);
+            setLocationError('Invalid coordinates received from geolocation.');
+            setIsAcquiringLocation(false);
+            return;
+          }
+
+          const locationData: LocationState = {
+            lat: latitude,
+            lng: longitude,
+            accuracy: accuracy,
+            timestamp: position.timestamp
+          };
+
+          setLocation(locationData);
+          setLocationError(null);
+          setIsAcquiringLocation(false);
+
           // Update userData with location
-          setUserData(prev => prev ? { ...prev, ...locationData } : null);
+          setUserData(prev => prev ? { 
+            ...prev, 
+            lat: latitude, 
+            lng: longitude 
+          } : null);
+
+          console.log('[Location] Location acquired successfully');
         },
         (error) => {
-          console.log("Location access denied or unavailable");
+          let errorMessage = 'Unable to get your location.';
+          
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Location permission denied. Please enable it in browser settings.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Location information is unavailable. Please check GPS/WiFi.';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Location request timed out. Please try again.';
+              break;
+            default:
+              errorMessage = 'Unknown error occurred while fetching location.';
+          }
+
+          console.error('[Location Error]', error.code, error.message);
+          setLocationError(errorMessage);
+          setIsAcquiringLocation(false);
+        },
+        {
+          enableHighAccuracy: true,    // Request GPS instead of IP-based location
+          timeout: 15000,              // Wait up to 15 seconds
+          maximumAge: 0                // Don't use cached position
         }
       );
+    } else {
+      console.error('[Location] Geolocation is not supported by this browser.');
+      setLocationError('Geolocation is not supported by your browser.');
+      setIsAcquiringLocation(false);
     }
   }, []);
 
+  // Validate coordinates before sending
+  const validateCoordinates = (coords: LocationState | null): boolean => {
+    if (!coords) {
+      return false;
+    }
+
+    const { lat, lng } = coords;
+
+    // Check for hardcoded zeros
+    if (lat === 0 && lng === 0) {
+      console.warn('[Validation] Coordinates are (0, 0) - likely not initialized');
+      return false;
+    }
+
+    // Validate ranges
+    if (Math.abs(lat) > 90) {
+      console.error('[Validation] Latitude out of range:', lat);
+      return false;
+    }
+
+    if (Math.abs(lng) > 180) {
+      console.error('[Validation] Longitude out of range:', lng);
+      return false;
+    }
+
+    return true;
+  };
+
   const handleDisasterReport = async (disasterId: string) => {
-    console.log('Reporting disaster:', disasterId);
+    console.log('[DisasterReport] Initiating report for disaster:', disasterId);
     
     const disasterTypes: Record<string, string> = {
       fire: 'Fire',
@@ -64,13 +158,24 @@ const Dashboard = () => {
       landslide: 'Landslide'
     };
 
-    // Validate location and user data
+    // Validate location
     if (!location) {
-      alert('Unable to get your location. Please ensure location permission is enabled.');
+      const message = locationError || 'Unable to acquire your location. Please ensure GPS/location permission is enabled and try again.';
+      console.warn('[DisasterReport] Location not available:', message);
+      alert(message);
       return;
     }
 
+    // Validate coordinates
+    if (!validateCoordinates(location)) {
+      console.warn('[DisasterReport] Coordinates validation failed');
+      alert('Location coordinates are invalid. Please wait a moment and try again.');
+      return;
+    }
+
+    // Validate user data
     if (!userData) {
+      console.warn('[DisasterReport] User data not found');
       alert('User data not found. Please login again.');
       return;
     }
@@ -83,16 +188,20 @@ const Dashboard = () => {
         disaster_type: disasterId,
         latitude: location.lat,
         longitude: location.lng,
-        full_address: '', // Backend will fill this via reverse geocoding
-        pincode: ''       // Backend will fill this via reverse geocoding
+        full_address: '',  // Backend will fill this via reverse geocoding
+        pincode: ''        // Backend will fill this via reverse geocoding
       };
 
-      console.log('Disaster Report Data:', emergencyData);
+      console.log('[DisasterReport] Sending emergency data:', {
+        ...emergencyData,
+        accuracy: location.accuracy,
+        timestamp: new Date(location.timestamp).toISOString()
+      });
 
       // Use service function to report emergency
       const response = await reportEmergencySOS(emergencyData);
 
-      console.log('Report submitted successfully:', response.data);
+      console.log('[DisasterReport] Report submitted successfully:', response.data);
       
       alert(
         `${disasterTypes[disasterId]} Incident Reported Successfully!\n\n` +
@@ -101,19 +210,21 @@ const Dashboard = () => {
         `Your Details:\n` +
         `Name: ${userData.name}\n` +
         `Phone: ${userData.phone}\n` +
-        `Location: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}\n\n` +
+        `Location: ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}\n` +
+        `Accuracy: ±${location.accuracy.toFixed(0)}m\n\n` +
         `Message: ${response.data.message}\n\n` +
         `Authorities have been notified.`
       );
     } catch (error: any) {
-      console.error('Error submitting report:', error);
+      console.error('[DisasterReport] Error submitting report:', error);
       
       const errorMessage = getErrorMessage(error);
       
       alert(
         `Error reporting incident:\n${errorMessage}\n\n` +
         `Your Location:\n` +
-        `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}\n\n` +
+        `Lat: ${location.lat.toFixed(6)}, Lng: ${location.lng.toFixed(6)}\n` +
+        `Accuracy: ±${location.accuracy.toFixed(0)}m\n\n` +
         `Please try again or contact support.`
       );
     } finally {
@@ -124,6 +235,48 @@ const Dashboard = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
+        {/* Location Status Banner */}
+        {isAcquiringLocation && (
+          <Card className="mb-8 border-l-4 border-l-yellow-500 bg-yellow-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin w-5 h-5 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+                <span className="text-yellow-800 font-semibold">Acquiring your location...</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {locationError && (
+          <Card className="mb-8 border-l-4 border-l-red-500 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-red-600">⚠️</span>
+                <div className="flex-1">
+                  <p className="text-red-800 font-semibold">Location Error</p>
+                  <p className="text-red-700 text-sm">{locationError}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {location && !locationError && (
+          <Card className="mb-8 border-l-4 border-l-green-500 bg-green-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-green-600">✓</span>
+                <div>
+                  <p className="text-green-800 font-semibold">Location Acquired</p>
+                  <p className="text-green-700 text-sm">
+                    Lat: {location.lat.toFixed(6)}, Lng: {location.lng.toFixed(6)} (Accuracy: ±{location.accuracy.toFixed(0)}m)
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Hero Section */}
         <Card className="mb-8 border-l-4 border-l-blue-600 glass-card">
           <CardHeader>
@@ -308,7 +461,7 @@ const Dashboard = () => {
 
       {/* Fixed SOS Circular Menu Button */}
       <div className="fixed bottom-8 left-8 z-50">
-        <SOSCircularMenu onSelectDisaster={handleDisasterReport} disabled={loading} />
+        <SOSCircularMenu onSelectDisaster={handleDisasterReport} disabled={loading || isAcquiringLocation} />
       </div>
     </Layout>
   );

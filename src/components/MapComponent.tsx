@@ -1,99 +1,165 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-interface Incident {
-  id: number;
-  latitude: number;
-  longitude: number;
-  citizen_name: string;
-  full_address: string;
-}
+import { SOSIncident } from '../services/api_incidents';
 
 interface MapComponentProps {
-  incidents: Incident[];
-  emoji: string;
+  incidents: SOSIncident[];
   disasterType: string;
-  onMarkerClick?: (incident: Incident) => void;
+  emoji: string;
+  color: string;
+  onMarkerClick?: (incident: SOSIncident) => void;
+  selectedIncident?: SOSIncident | null;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({
   incidents,
-  emoji,
   disasterType,
-  onMarkerClick
+  emoji,
+  color,
+  onMarkerClick,
+  selectedIncident,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
-  const markersRef = useRef<L.Marker[]>([]);
+  const markersRef = useRef<{ [key: number]: L.Marker }>({});
+  const groupRef = useRef<L.FeatureGroup | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current) return;
-
     // Initialize map
-    if (!map.current) {
-      map.current = L.map(mapContainer.current).setView([22.7196, 75.8577], 12);
+    if (!mapContainer.current || map.current) return;
 
-      // Add OpenStreetMap tile layer
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19,
-      }).addTo(map.current);
-    }
+    // Get map center and zoom from env variables
+    const centerLat = parseFloat(import.meta.env.VITE_MAP_CENTER_LAT || '23.1815');
+    const centerLng = parseFloat(import.meta.env.VITE_MAP_CENTER_LNG || '79.9864');
+    const zoomLevel = parseInt(import.meta.env.VITE_MAP_DEFAULT_ZOOM || '10');
 
-    // Clear existing markers
-    markersRef.current.forEach(marker => {
-      map.current?.removeLayer(marker);
-    });
-    markersRef.current = [];
+    map.current = L.map(mapContainer.current).setView([centerLat, centerLng], zoomLevel);
 
-    // Add markers for incidents
-    if (incidents.length > 0) {
-      incidents.forEach((incident) => {
-        // Create custom emoji icon
-        const emojiIcon = L.divIcon({
-          html: `<div style="font-size: 32px; text-align: center; line-height: 1;">${emoji}</div>`,
-          iconSize: [40, 40],
-          className: 'emoji-icon',
-        });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map.current);
 
-        const marker = L.marker([incident.latitude, incident.longitude], {
-          icon: emojiIcon,
-          title: incident.citizen_name,
-        })
-          .addTo(map.current!)
-          .bindPopup(`
-            <div class="popup-content">
-              <p class="font-bold">${incident.citizen_name}</p>
-              <p class="text-sm">${incident.full_address}</p>
-            </div>
-          `);
-
-        // Add click event
-        marker.on('click', () => {
-          onMarkerClick?.(incident);
-        });
-
-        markersRef.current.push(marker);
-      });
-
-      // Fit bounds to all markers
-      if (markersRef.current.length > 0) {
-        const group = new L.FeatureGroup(markersRef.current);
-        map.current?.fitBounds(group.getBounds().pad(0.1));
-      }
-    }
+    groupRef.current = L.featureGroup().addTo(map.current);
 
     return () => {
-      // Cleanup is handled by ref
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
     };
-  }, [incidents, emoji, onMarkerClick]);
+  }, []);
+
+  // Update markers when incidents change
+  useEffect(() => {
+    if (!map.current || !groupRef.current) return;
+
+    // Clear existing markers
+    Object.values(markersRef.current).forEach((marker) => {
+      groupRef.current?.removeLayer(marker);
+    });
+    markersRef.current = {};
+
+    // Add new markers
+    incidents.forEach((incident) => {
+      const customIcon = L.divIcon({
+        className: 'custom-marker',
+        html: `
+          <div style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            background-color: ${color};
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            font-size: 24px;
+            cursor: pointer;
+          ">
+            ${emoji}
+          </div>
+        `,
+        iconSize: [50, 50],
+        iconAnchor: [25, 25],
+        popupAnchor: [0, -25],
+      });
+
+      const marker = L.marker([incident.latitude, incident.longitude], {
+        icon: customIcon,
+      });
+
+      // Create popup with citizen info
+      const popupContent = `
+        <div style="font-family: Arial, sans-serif; width: 250px;">
+          <div style="font-weight: bold; color: ${color}; margin-bottom: 8px;">
+            ${emoji} ${disasterType.toUpperCase()}
+          </div>
+          <div style="font-size: 14px; margin-bottom: 8px;">
+            <strong>Citizen:</strong> ${incident.citizen.first_name} ${incident.citizen.last_name}
+          </div>
+          <div style="font-size: 14px; margin-bottom: 8px;">
+            <strong>Phone:</strong> <a href="tel:${incident.citizen.phone_number}">${incident.citizen.phone_number}</a>
+          </div>
+          <div style="font-size: 14px; margin-bottom: 8px;">
+            <strong>Email:</strong> ${incident.citizen.email}
+          </div>
+          <div style="font-size: 13px; margin-bottom: 8px;">
+            <strong>Address:</strong> ${incident.full_address}
+          </div>
+          <div style="font-size: 13px; margin-bottom: 8px;">
+            <strong>Pincode:</strong> ${incident.pincode || 'N/A'}
+          </div>
+          <div style="font-size: 12px; color: #666; margin-top: 8px;">
+            <strong>Reported:</strong> ${new Date(incident.incident_time).toLocaleString()}
+          </div>
+          <div style="font-size: 12px; margin-top: 8px;">
+            <span style="
+              display: inline-block;
+              padding: 4px 8px;
+              background-color: ${incident.status === 'ACTIVE' ? '#ef4444' : '#10b981'};
+              color: white;
+              border-radius: 4px;
+            ">
+              ${incident.status_display}
+            </span>
+          </div>
+        </div>
+      `;
+
+      marker.bindPopup(popupContent);
+
+      marker.on('click', () => {
+        onMarkerClick?.(incident);
+      });
+
+      marker.addTo(groupRef.current);
+      markersRef.current[incident.id] = marker;
+
+      // Highlight selected incident
+      if (selectedIncident?.id === incident.id) {
+        marker.openPopup();
+      }
+    });
+
+    // Fit bounds if incidents exist
+    if (incidents.length > 0 && groupRef.current) {
+      const bounds = groupRef.current.getBounds();
+      map.current.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [incidents, selectedIncident, disasterType, emoji, color, onMarkerClick]);
 
   return (
     <div
       ref={mapContainer}
-      className="w-full h-80 rounded-lg overflow-hidden border border-gray-200"
-      style={{ minHeight: '320px' }}
+      style={{
+        width: '100%',
+        height: '400px',
+        borderRadius: '8px',
+        overflow: 'hidden',
+      }}
     />
   );
 };
