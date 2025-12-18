@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { LogIn, User, Lock, Mail, Phone, MapPin, ArrowLeft, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { registerCitizen } from '../services/api';
 
+type Errors = Record<string, string>;
+
 const CitizenRegistration = () => {
+ 
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
@@ -19,11 +22,13 @@ const CitizenRegistration = () => {
     longitude: ''
   });
 
-  const [errors, setErrors] = useState({});
+ 
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationGranted, setLocationGranted] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [errors, setErrors] = useState<Errors>({});
+
 
   // Request live location on component mount
   useEffect(() => {
@@ -67,7 +72,7 @@ const CitizenRegistration = () => {
     }
   };
 
-  const calculatePasswordStrength = (password) => {
+ const calculatePasswordStrength = (password: string): number => {
     let strength = 0;
     if (password.length >= 8) strength++;
     if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength++;
@@ -76,7 +81,9 @@ const CitizenRegistration = () => {
     return strength;
   };
 
-  const handleChange = (e) => {
+ const handleChange = (
+  e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+) => {
     const { id, value } = e.target;
     setFormData(prev => ({ ...prev, [id]: value }));
     
@@ -94,30 +101,78 @@ const CitizenRegistration = () => {
     }
   };
 
-  const validateForm = () => {
-    const newErrors = {};
 
-    if (!formData.username.trim()) newErrors.username = 'Username is required';
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid';
+
+const validateForm = () => {
+  const newErrors: Errors = {};
+
+
+   // USERNAME VALIDATION
+if (!formData.username.trim()) {
+  newErrors.username = 'Username is required';
+} else if (formData.username.length < 4) {
+  newErrors.username = 'Username must be at least 4 characters';
+} else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+  newErrors.username = 'Username can contain only letters, numbers, and underscore';
+}
+
+
+  // EMAIL VALIDATION
+if (!formData.email.trim()) {
+  newErrors.email = 'Email is required';
+} else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+  newErrors.email = 'Please enter a valid email address';
+}
+
     
-    if (!formData.password) newErrors.password = 'Password is required';
-    else if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
+   // PASSWORD VALIDATION
+if (!formData.password) {
+  newErrors.password = 'Password is required';
+} else if (formData.password.length < 8) {
+  newErrors.password = 'Password must be at least 8 characters';
+} else if (!/[A-Z]/.test(formData.password)) {
+  newErrors.password = 'Password must contain at least one uppercase letter';
+} else if (!/[a-z]/.test(formData.password)) {
+  newErrors.password = 'Password must contain at least one lowercase letter';
+} else if (!/[0-9]/.test(formData.password)) {
+  newErrors.password = 'Password must contain at least one number';
+} else if (!/[^a-zA-Z0-9]/.test(formData.password)) {
+  newErrors.password = 'Password must contain at least one special character';
+}
+
+// CONFIRM PASSWORD VALIDATION
+if (!formData.confirm_password) {
+  newErrors.confirm_password = 'Please confirm your password';
+} else if (formData.password !== formData.confirm_password) {
+  newErrors.confirm_password = 'Passwords do not match';
+}
+
+    // PHONE NUMBER VALIDATION
+if (!formData.phone_number.trim()) {
+  newErrors.phone_number = 'Phone number is required';
+} else if (!/^[6-9]\d{9}$/.test(formData.phone_number)) {
+  newErrors.phone_number = 'Enter a valid 10-digit Indian mobile number';
+}
+
+ // AADHAR VALIDATION
+if (!formData.aadhar_number.trim()) {
+  newErrors.aadhar_number = 'Aadhar number is required';
+} else if (!/^\d{12}$/.test(formData.aadhar_number)) {
+  newErrors.aadhar_number = 'Aadhar number must be exactly 12 digits';
+}
+
     
-    if (formData.password !== formData.confirm_password) newErrors.confirm_password = 'Passwords do not match';
-    if (!formData.phone_number.trim()) newErrors.phone_number = 'Phone number is required';
-    else if (!/^\d{10}$/.test(formData.phone_number)) newErrors.phone_number = 'Phone number must be 10 digits';
-    
-    if (!formData.aadhar_number.trim()) newErrors.aadhar_number = 'Aadhar number is required';
-    else if (!/^\d{12}$/.test(formData.aadhar_number)) newErrors.aadhar_number = 'Aadhar number must be 12 digits';
-    
-    if (!formData.address.trim()) newErrors.address = 'Address is required';
-    if (!locationGranted) newErrors.location = 'Location permission is required';
+// AADHAR VALIDATION
+if (!formData.aadhar_number.trim()) {
+  newErrors.aadhar_number = 'Aadhar number is required';
+} else if (!/^\d{12}$/.test(formData.aadhar_number)) {
+  newErrors.aadhar_number = 'Aadhar number must be exactly 12 digits';
+}
 
     return newErrors;
   };
 
-  const handleSubmit = async (e) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const validationErrors = validateForm();
@@ -385,7 +440,7 @@ const CitizenRegistration = () => {
                   placeholder="Enter your full address"
                   value={formData.address}
                   onChange={handleChange}
-                  rows="3"
+                  rows={3}
                   className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-gray-800 ${
                     errors.address ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
@@ -500,5 +555,5 @@ const CitizenRegistration = () => {
   );
 };
 
-export { CitizenRegistration };
+
 export default CitizenRegistration;

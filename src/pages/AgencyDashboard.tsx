@@ -16,7 +16,7 @@ interface DashboardStats {
 interface AgencyData {
   agency_name?: string;
   agency_id?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 const AgencyDashboard: React.FC = () => {

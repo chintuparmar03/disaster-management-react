@@ -17,6 +17,25 @@ const CitizenLogin = () => {
     setFormData(prev => ({ ...prev, [id]: value }));
     setError(''); // Clear error when user starts typing
   };
+  const validateForm = () => {
+  if (!formData.username_or_phone.trim()) {
+    setError("Username or phone number is required.");
+    return false;
+  }
+
+  if (!formData.password.trim()) {
+    setError("Password is required.");
+    return false;
+  }
+
+  if (formData.password.length < 8) {
+    setError("Password must be at least 8 characters long.");
+    return false;
+  }
+
+  return true;
+};
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,15 +78,42 @@ const CitizenLogin = () => {
 
       alert('Login successful! Redirecting to Dashboard.');
       navigate('/dashboard');
-    } catch (error: any) {
-      console.error('Login error:', error.response?.data || error.message);
-      const errorMessage = error.response?.data?.detail || 
-                          error.response?.data?.message || 
-                          error.response?.data?.error ||
-                          'Login failed. Please try again.';
-      setError(errorMessage);
-      alert(errorMessage);
-    } finally {
+    } catch (error: unknown) {
+  console.error('Login error:', error);
+
+  let errorMessage = 'Login failed. Please try again.';
+
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  // Axios error handling
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error
+  ) {
+    const err = error as {
+      response?: {
+        data?: {
+          detail?: string;
+          message?: string;
+          error?: string;
+        };
+      };
+    };
+
+    errorMessage =
+      err.response?.data?.detail ||
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      errorMessage;
+  }
+
+  setError(errorMessage);
+  alert(errorMessage);
+}
+ finally {
       setLoading(false);
     }
   };
@@ -151,13 +197,14 @@ const CitizenLogin = () => {
               </div>
 
               <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
-              >
-                <LogIn className="w-5 h-5" />
-                {loading ? 'Logging in...' : 'Login to Account'}
-              </button>
+  type="submit"
+  disabled={loading}
+  className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+>
+  <LogIn className="w-5 h-5" />
+  {loading ? 'Logging in...' : 'Login to Account'}
+</button>
+
             </form>
 
             <div className="mt-6 text-center">
@@ -166,6 +213,8 @@ const CitizenLogin = () => {
                 <button
                   onClick={() => navigate('/citizen-register')}
                   className="text-blue-300 hover:text-white font-semibold transition"
+
+                  
                 >
                   Register Here
                 </button>

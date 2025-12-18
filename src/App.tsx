@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
+
 import Dashboard from "./pages/Dashboard";
 import Organization from "./pages/Organization";
 import DisasterZones from "./pages/DisasterZones";
@@ -23,23 +24,25 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/citizen-register" element={<CitizenRegister />} />
-          <Route path="/citizen-login" element={<CitizenLogin />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-           <Route path="/agencydashboard" element={<AgencyDashboard />} />
-        
-          <Route path="/organization" element={<Organization />} />
-          <Route path="/disaster-zones" element={<DisasterZones />} />
-          <Route path="/emergency-contacts" element={<EmergencyContacts />} />
-          <Route path="/volunteer-login" element={<VolunteerLogin />} />
-          <Route path="/agency-login" element={<AgencyLogin />} />
-          <Route path="/report-disaster" element={<ReportDisaster />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+
+      {/* ✅ ONLY Routes here */}
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/citizen-register" element={<CitizenRegister />} />
+        <Route path="/citizen-login" element={<CitizenLogin />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/agencydashboard" element={<AgencyDashboard />} />
+
+        <Route path="/organization" element={<Organization />} />
+        <Route path="/disaster-zones" element={<DisasterZones />} />
+        <Route path="/emergency-contacts" element={<EmergencyContacts />} />
+        <Route path="/volunteer-login" element={<VolunteerLogin />} />
+        <Route path="/agency-login" element={<AgencyLogin />} />
+        <Route path="/report-disaster" element={<ReportDisaster />} />
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+
     </TooltipProvider>
   </QueryClientProvider>
 );

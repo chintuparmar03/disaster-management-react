@@ -14,13 +14,39 @@ const VolunteerLogin = () => {
     setFormData(prev => ({ ...prev, [id]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('Volunteer Login Data:', formData);
-    // Add your login logic here
-    alert('Volunteer login successful! Redirecting to Volunteer Dashboard.');
-    navigate('/dashboard');
-  };
+ const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+
+  // 🔹 STEP 1: Email required
+  if (!formData.email.trim()) {
+    alert('Email is required');
+    return;
+  }
+
+  // 🔹 STEP 2: Email format
+  if (!/\S+@\S+\.\S+/.test(formData.email)) {
+    alert('Invalid email format');
+    return;
+  }
+
+  // 🔹 STEP 3: Password required
+  if (!formData.password) {
+    alert('Password is required');
+    return;
+  }
+
+  // 🔹 STEP 4: Password length
+  if (formData.password.length < 8) {
+    alert('Password must be at least 8 characters');
+    return;
+  }
+
+  // ✅ If all validations pass
+  console.log('Volunteer Login Data:', formData);
+  alert('Volunteer login successful! Redirecting to Volunteer Dashboard.');
+  navigate('/dashboard');
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900 flex items-center justify-center p-4">

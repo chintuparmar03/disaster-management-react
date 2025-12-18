@@ -25,9 +25,19 @@ const AgencyLogin = () => {
 
     try {
       // Validate inputs
-      if (!formData.username || !formData.password) {
-        throw new Error('Please enter both username and password');
-      }
+      // BASIC INPUT VALIDATION
+if (!formData.username.trim()) {
+  throw new Error('Username is required');
+}
+
+if (!formData.password) {
+  throw new Error('Password is required');
+}
+
+if (formData.password.length < 8) {
+  throw new Error('Password must be at least 8 characters');
+}
+
 
       // Call login service
       const response = await AgencyLoginService.login({
